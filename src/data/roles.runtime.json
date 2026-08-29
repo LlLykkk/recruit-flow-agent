@@ -1,1 +1,26 @@
-[]
+{
+  "roles": [],
+  "members": {
+    "admin": [
+      {
+        "id": "mem_mte5f8rk",
+        "name": "测试一",
+        "open_id": ""
+      }
+    ],
+    "home_service": [
+      {
+        "id": "mem_mte5adga",
+        "name": "陈晓东",
+        "open_id": ""
+      }
+    ],
+    "supervisor": [
+      {
+        "id": "mem_mte5adge",
+        "name": "王老师",
+        "open_id": ""
+      }
+    ]
+  }
+}

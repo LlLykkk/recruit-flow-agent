@@ -11,11 +11,11 @@
   },
   "license": "MIT",
   "dependencies": {
-    "express": "^4.19.2",
-    "tencentcloud-sdk-nodejs": "^4.0.0"
+    "express": "^4.19.2"
   },
   "optionalDependencies": {
-    "@larksuiteoapi/node-sdk": "^1.30.0"
+    "@larksuiteoapi/node-sdk": "^1.30.0",
+    "tencentcloud-sdk-nodejs": "^4.0.0"
   },
   "engines": {
     "node": ">=18"

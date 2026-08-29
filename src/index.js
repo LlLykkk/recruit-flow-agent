@@ -13,6 +13,9 @@
  *   PUT  /api/role           修改角色名称/权限（仅管理员，内置角色不可改）
  *   DELETE /api/role         删除自定义角色（仅管理员）
  *   POST /api/role/switch    切换当前操作角色
+ *   POST /api/role/member    管理员给角色添加人员（role_id/name/open_id?）
+ *   DELETE /api/role/member  管理员移除角色下的人员
+ *   POST /api/member/switch  切换当前操作者（member_id=null 表示角色本人）
  *   POST /api/jump           跳转到任意步骤（全员可用；非管理员仅可修改自己负责的步骤）
  *   PUT  /api/action         修改行动主表（标题/难度/责任人/截止）
  *   POST /api/school         新建学校（写入学校档案表）
@@ -106,6 +109,32 @@ app.post('/api/role/switch', (req, res) => {
     const { roleId } = req.body || {};
     if (!roleId) return res.status(400).json({ ok: false, msg: 'roleId 必填' });
     res.json(session.setRole(roleId));
+  } catch (e) { res.status(400).json({ ok: false, msg: e.message }); }
+});
+
+// 角色成员管理（管理员可在各角色中添加/移除人员）
+app.post('/api/role/member', (req, res) => {
+  try {
+    const { role_id, name, open_id } = req.body || {};
+    if (!role_id) return res.status(400).json({ ok: false, msg: 'role_id 必填' });
+    res.json(session.addRoleMember(role_id, { name, open_id }));
+  } catch (e) { res.status(400).json({ ok: false, msg: e.message }); }
+});
+
+app.delete('/api/role/member', (req, res) => {
+  try {
+    const role_id = (req.body && req.body.role_id) || req.query.role_id;
+    const member_id = (req.body && req.body.member_id) || req.query.member_id;
+    if (!role_id || !member_id) return res.status(400).json({ ok: false, msg: 'role_id / member_id 必填' });
+    res.json(session.removeRoleMember(role_id, member_id));
+  } catch (e) { res.status(400).json({ ok: false, msg: e.message }); }
+});
+
+// 切换当前操作者（member_id=null 表示以角色本人操作）
+app.post('/api/member/switch', (req, res) => {
+  try {
+    const { member_id } = req.body || {};
+    res.json(session.setMember(member_id || null));
   } catch (e) { res.status(400).json({ ok: false, msg: e.message }); }
 });
 

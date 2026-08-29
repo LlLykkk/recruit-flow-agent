@@ -102,6 +102,8 @@
     <span class="rl">当前角色</span>
     <select id="roleSel" onchange="switchRole(this.value)"></select>
     <span id="roleScope" class="muted"></span>
+    <span class="rl" id="memberLabel" style="display:none">当前操作者</span>
+    <select id="memberSel" style="display:none" onchange="switchMember(this.value)"></select>
     <button id="roleMgrBtn" class="btn-mini" onclick="toggleRoleMgr()">⚙ 权限管理</button>
   </div>
 
@@ -229,6 +231,16 @@ function renderRoleBar(){
   $('#roleScope').textContent = cur ? (cur.scope==='all' ? '可操作：全部步骤（管理员）' : '可操作：'+scopeText(cur.scope)) : '';
   $('#roleMgrBtn').style.display = rolesInfo.isAdmin ? 'inline-block' : 'none';
   if(!rolesInfo.isAdmin) $('#roleMgr').classList.add('hidden');
+  // 当前操作者：该角色下的人员（管理员可先在权限管理中添加）
+  const members = (cur && cur.members) || [];
+  const ms=$('#memberSel'), ml=$('#memberLabel');
+  if(members.length){
+    ms.innerHTML = `<option value="">角色本人（${esc(cur.name)}）</option>` +
+      members.map(m=>`<option value="${esc(m.id)}" ${m.id===rolesInfo.currentMemberId?'selected':''}>${esc(m.name)}</option>`).join('');
+    ms.style.display=''; ml.style.display='';
+  } else {
+    ms.style.display='none'; ml.style.display='none';
+  }
   renderRoleMgr();
 }
 function renderRoleMgr(){
@@ -239,12 +251,16 @@ function renderRoleMgr(){
     const chips = r.scope==='all'
       ? '<span class="badge blue">全部步骤（管理员级）</span>'
       : (r.scope||[]).map(k=>`<span class="badge">${esc(phaseLabel(k))}</span>`).join(' ');
+    const memChips = (r.members||[]).length
+      ? (r.members||[]).map(m=>`<span class="badge blue">${esc(m.name)} <a style="cursor:pointer;color:var(--red)" onclick="delRoleMember('${esc(r.id)}','${esc(m.id)}')" title="移除">×</a></span>`).join(' ')
+      : '<span class="muted" style="font-size:12px">暂无人员</span>';
     return `<div class="rrow"><div><b>${esc(r.name)}</b> ${r.builtin?'<span class="badge">内置</span>':'<span class="badge green">自定义</span>'}
-      <div class="scopes">${chips}</div></div>
+      <div class="scopes">${chips}</div>
+      <div class="scopes">👤 ${memChips} <button class="btn-mini" onclick="addRoleMember('${esc(r.id)}')">＋ 添加人员</button></div></div>
       ${r.builtin?'':`<button class="btn-mini red" onclick="delRole('${esc(r.id)}')">删除</button>`}</div>`;
   }).join('');
-  box.innerHTML = `<h3>⚙ 角色权限管理（管理员）</h3>
-    <div class="muted" style="font-size:12.5px;margin-bottom:8px">新增角色时<b>只勾选一个步骤</b>，该角色就只能看到并操作这一个步骤；勾选「全部步骤」即赋予管理员级权限。自定义角色会自动保存，重启服务后仍在。</div>
+  box.innerHTML = `<h3>⚙ 角色权限管理（管理员 · 最高权限）</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:8px">可给任意角色<b>添加人员</b>（点「＋ 添加人员」输入姓名，× 移除）；新增角色时<b>只勾选一个步骤</b>，该角色就只能操作这一个步骤；勾选「全部步骤」即管理员级。自定义角色与人员名单会自动保存，重启服务后仍在。</div>
     ${rows}
     <div style="border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px">
       <label class="fld">新角色名称</label><input type="text" id="nr_name" placeholder="例：凭证审核专员">
@@ -273,6 +289,25 @@ async function delRole(id){
   const r=await api('DELETE','/api/role',{ id });
   if(r.ok===false){ alert(r.msg); return; }
   await refreshRoles(); render(r);
+}
+// ---------- 角色成员（管理员添加/移除人员，切换当前操作者） ----------
+async function addRoleMember(roleId){
+  const name=prompt('输入要添加的人员姓名：');
+  if(!name || !name.trim()) return;
+  const r=await api('POST','/api/role/member',{ role_id:roleId, name:name.trim() });
+  if(r.ok===false){ alert(r.msg); return; }
+  await refreshRoles(); render(r);
+}
+async function delRoleMember(roleId, memberId){
+  if(!confirm('确认移除该人员？')) return;
+  const r=await api('DELETE','/api/role/member',{ role_id:roleId, member_id:memberId });
+  if(r.ok===false){ alert(r.msg); return; }
+  await refreshRoles(); render(r);
+}
+async function switchMember(memberId){
+  const s=await api('POST','/api/member/switch',{ member_id:memberId||null });
+  if(s.ok===false){ alert(s.msg); return; }
+  await refreshRoles(); render(s);
 }
 
 // ---------- 渲染主面板 ----------
@@ -539,7 +574,7 @@ async function uploadVoucher(taskId){
   const type=selVal('voucherType');
   const content=$('#vcontent_'+taskId).value.trim();
   const doSend=(attachment)=>{
-    api('POST','/api/voucher',{ task_id:taskId, type, content, attachment, submitted_by:'家服主任' }).then(render);
+    api('POST','/api/voucher',{ task_id:taskId, type, content, attachment }).then(render);
   };
   if(fileInput && fileInput.files && fileInput.files[0]){
     const f=fileInput.files[0];

@@ -35,7 +35,7 @@ npm start           # 启动 Express（/health、/feishu/webhook、/、/demo）
   - **操作按角色受控**：只有自己负责的步骤可点（按钮/表单可用），其余步骤为**只读**——按钮禁用、表单禁点、带「🔒 只读」提示；后端接口同样拒绝越权操作。
   - **🧭 跳转任意步骤（全员可用）**：任何角色都可跳转到任意步骤页面查看/继续；**管理员跳转后可全部修改，其他成员跳转后仍只能修改自己负责的步骤**（其余步骤只读，后端接口同样拒绝越权操作）。面板上绿色=可修改步骤、灰色=只读。
   - **管理员**：可操作任意步骤，并可跳转到任意步骤修改（可回跳到已过步骤继续编辑任务/凭证/主表）。
-  - **⚙ 权限管理**（仅管理员可见）：可**新增自定义角色**——只勾选一个步骤，该角色就只能**操作**这一个步骤（页面仍可全部查看）；也可勾选「全部步骤」赋予管理员级权限。自定义角色可删除、自动持久化（重启服务仍在），内置角色不可改/删。
+  - **⚙ 权限管理**（仅管理员 · 最高权限可见）：可给**任意角色添加人员**（角色 → 人员两级：如「家服主任」下挂张慧敏/陈晓东），成员名单自动持久化；角色栏可再选**当前操作者**，操作留痕（如凭证提交人）用成员姓名。也可**新增自定义角色**——只勾选一个步骤，该角色就只能**操作**这一个步骤（页面仍可全部查看）；勾选「全部步骤」即管理员级。自定义角色可删除、自动持久化（重启服务仍在），内置角色不可改/删。
 - 底部可展开运行轨迹，查看四角色每一步日志。
 
 非交互接口：`curl http://localhost:9000/demo`（一次性跑完整闭环，兼容自动化测试）。
@@ -57,6 +57,9 @@ npm start           # 启动 Express（/health、/feishu/webhook、/、/demo）
 | PUT | `/api/role` | 修改自定义角色名称/权限（仅管理员） |
 | DELETE | `/api/role` | 删除自定义角色（仅管理员） |
 | POST | `/api/role/switch` | 切换当前操作角色 |
+| POST | `/api/role/member` | 管理员给角色添加人员（role_id/name/open_id?） |
+| DELETE | `/api/role/member` | 管理员移除角色下的人员 |
+| POST | `/api/member/switch` | 切换当前操作者（member_id=null 表示角色本人） |
 | POST | `/api/jump` | 跳转到任意步骤（全员可用；非管理员仅可修改自己负责的步骤） |
 | PUT | `/api/action` | 修改行动主表（标题/难度/责任人/截止，行动官/管理员） |
 | POST | `/api/reset` | 重置会话 |
@@ -77,36 +80,55 @@ OpenAI 兼容通道（可选）：`OPENAI_BASE_URL` + `OPENAI_API_KEY` + `OPENAI
 
 ## 3. 部署到腾讯云 CloudBase
 
-> 部署动作需你授权后在本地执行；本仓库已配好 `cloudbaserc.json` 与 `scf_bootstrap`。
+> 部署动作需你授权后在本地执行；本仓库已配好 `cloudbaserc.json`（HTTP 云函数）与 `scf_bootstrap`（启动脚本，监听 `$PORT`）。
 
-前置：安装 [CloudBase CLI](https://cloud.tencent.com/product/cloudbase)（`npm i -g @cloudbase/cli`），登录并创建环境。
+**前置**：安装 [CloudBase CLI](https://cloud.tencent.com/product/cloudbase)（`npm i -g @cloudbase/cli`）→ `tcb login`（浏览器授权）→ 创建环境拿 envId。
 
 ```bash
-# 1) 创建/指定环境
-tcb env:create recruit-flow-agent      # 或已有环境直接记录 envId
+# 0) 在项目根目录执行（cloudbaserc.json 与 scf_bootstrap 必须处于函数根，本项目 functionRoot=./）
+cd recruit-flow-agent
 
-# 2) 修改 cloudbaserc.json 的 envId 与本环境一致
+# 1) 创建环境（或控制台创建后直接记录 envId）
+tcb env:create recruit-flow-agent
 
-# 3) 配置环境变量（密钥放 CloudBase 密钥管理，勿入库）
-tcb env:config --envId <你的envId> --name FEISHU_MODE --value real
-# ... 其余 HUNYUAN_*/FEISHU_* 同法配置
+# 2) 把 cloudbaserc.json 的 "envId" 改成你的环境 ID（唯一必改项）
 
-# 4) 部署 HTTP 云函数
-tcb fn deploy --httpFn --envId <你的envId>
+# 3) 部署 HTTP 云函数（读 cloudbaserc.json；首次即创建）
+tcb fn deploy recruit-flow-agent --force
 
-# 5) 在飞书开放平台把事件订阅回调填为：https://<你的云函数域名>/feishu/webhook
+# 4) 部署成功后在控制台「云函数 → recruit-flow-agent → HTTP 访问服务」拿到访问域名
+#    验证：curl https://<你的云函数域名>/health 应返回 {"ok":true,...}
+
+# 5) 在飞书开放平台（自建应用 → 事件订阅）把回调地址填为：
+#    https://<你的云函数域名>/feishu/webhook
 ```
+
+### 环境变量（密钥走控制台，勿写进代码/提交）
+控制台「云函数 → 函数配置 → 环境变量」逐项配置（或 `tcb fn config update`），其中：
+
+| 变量 | 说明 |
+|-|-|
+| `HUNYUAN_SECRET_ID` / `HUNYUAN_SECRET_KEY` | 腾讯混元密钥（缺省走规则回退） |
+| `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书自建应用凭证（real 模式必填） |
+| `FEISHU_BASE_APP_TOKEN` + 四表 `table_id` | 《招生控流工作流》多维表 |
+| `FEISHU_NOTIFY_CHAT_ID` | 通知群/人（逾期提醒） |
+
+> **先上云跑通 mock**：临时把 `cloudbaserc.json` 的 `envVariables.FEISHU_MODE` 改为 `mock` 部署一次，无需任何凭证即可在云上验证完整闭环；验证通过后再改回 `real` 并补全环境变量，重新 `tcb fn deploy --force`。
+
+### HTTP 云函数注意事项（重要）
+- HTTP 云函数**不支持云端自动装依赖**（`installDependency` 对 HTTP 类型无效），必须把本地 `node_modules` 随包上传。
+- 本项目已把两个大 SDK（`tencentcloud-sdk-nodejs` 约 46M、`@larksuiteoapi/node-sdk` 约 29M）标为**可选依赖**并在代码中**惰性加载**（无密钥/非 real 模式不加载），`cloudbaserc.json` 的 `ignore` 已排除它们——上传包约 15M，远低于 50M 上限。
+- 改代码后重新部署：`tcb fn deploy recruit-flow-agent --force`；只改环境变量：`tcb fn config update recruit-flow-agent`。
+- 查日志：`tcb fn log recruit-flow-agent`；本地调试：`tcb fn run recruit-flow-agent`。
 
 ### 逾期提醒自动化（可选定时触发器）
-部署到 CloudBase 后，可加一个**定时触发器**周期性调 `/api/check-overdue`（带 `notify:true`）实现无人值守的逾期提醒：
+部署到 CloudBase 后，可加**定时触发器**周期性调 `/api/check-overdue`（带 `notify:true`）实现无人值守的逾期提醒。在 `cloudbaserc.json` 的 `functions[0].triggers` 增加（示例：每 30 分钟一次）后重新部署：
 
-```bash
-# cloudbaserc.json 的 functions[].triggers 增加（示例：每 30 分钟一次）
-# { "name": "overdue", "type": "timer", "config": "*/30 * * * *" }
-# 触发目标内部请求 POST /api/check-overdue { "notify": true }
+```json
+"triggers": [{ "name": "overdue", "type": "timer", "config": "0 */30 * * * * *" }]
 ```
 
-> 当前 mock 模式仅返回/标红；real 模式需配置 `FEISHU_MODE=real` + 飞书自建应用 + `FEISHU_NOTIFY_CHAT_ID`，方可向责任人发送飞书消息。
+> 定时触发器是 HTTP 云函数内发起的内部请求，需在函数代码里配置调用自身 `/api/check-overdue`（`notify:true`）；当前 mock 模式仅返回/标红，real 模式会向责任人发送飞书消息。
 
 ### 备选：云托管（容器）
 `Dockerfile` 方式：以 `node:18` 为基础镜像，`CMD ["node","src/index.js"]`，监听 `PORT`（平台注入 9000），在 CloudBase 控制台「云托管」创建服务并绑定代码仓库即可。

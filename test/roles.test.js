@@ -122,15 +122,46 @@ const uniq = () => `测试角色_${Date.now().toString(36)}`;
   assert.ok(del && del.phase !== undefined, '删除成功应返回 state（而非 {ok:false} 错误）');
   info = await req('GET', '/api/roles');
   assert.ok(!info.roles.some((r) => r.id === custom.id), '删除后自定义角色不再出现');
-  // 持久化校验：重启会话后自定义角色不应残留（roles.runtime.json 应为空数组）
+  // 持久化校验：自定义角色删除后不落盘（新格式 {roles, members}）
   const fs = require('fs');
   const runtimePath = require('path').join(__dirname, '..', 'src', 'data', 'roles.runtime.json');
   if (fs.existsSync(runtimePath)) {
-    assert.deepStrictEqual(JSON.parse(fs.readFileSync(runtimePath, 'utf8')), [], '删除后持久化文件应为空');
+    const rt = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
+    assert.deepStrictEqual(rt.roles || [], [], '删除后自定义角色应为空');
+  }
+
+  // 8) 角色成员管理：管理员（最高权限）可给各角色添加/移除人员，可切换当前操作者
+  await req('POST', '/api/role/switch', { roleId: 'admin' });
+  const mr = await req('POST', '/api/role/member', { role_id: 'home_service', name: '李四' });
+  assert.notStrictEqual(mr.ok, false, '管理员可给角色添加人员');
+  assert.strictEqual((await req('POST', '/api/role/member', { role_id: 'home_service', name: '李四' })).ok, false, '重复人员应被拒');
+  let rinfo = await req('GET', '/api/roles');
+  const hsRole = rinfo.roles.find((r) => r.id === 'home_service');
+  assert.ok(hsRole && hsRole.members.some((m) => m.name === '李四'), '角色下应出现人员');
+  const memId = hsRole.members.find((m) => m.name === '李四').id;
+  // 以成员身份操作：切换当前操作者 → 凭证提交人用成员名
+  await req('POST', '/api/role/switch', { roleId: 'home_service' });
+  let ms = await req('POST', '/api/member/switch', { member_id: memId });
+  assert.strictEqual(ms.operatorName, '李四', '当前操作者应为李四');
+  const taskId = ms.tasks[0].task_id;
+  const up = await req('POST', '/api/voucher', { task_id: taskId, type: '活动照片', content: '成员上传测试' });
+  assert.strictEqual(up.vouchers[up.vouchers.length - 1].submitted_by, '李四', '凭证提交人应为当前操作者');
+  // 非管理员不能管理成员
+  await req('POST', '/api/role/switch', { roleId: 'conduction_officer' });
+  assert.strictEqual((await req('POST', '/api/role/member', { role_id: 'home_service', name: '王五' })).ok, false, '非管理员无权添加人员');
+  assert.strictEqual((await req('DELETE', '/api/role/member', { role_id: 'home_service', member_id: memId })).ok, false, '非管理员无权移除人员');
+  // 管理员移除成员 → 名单清空
+  await req('POST', '/api/role/switch', { roleId: 'admin' });
+  assert.notStrictEqual((await req('DELETE', '/api/role/member', { role_id: 'home_service', member_id: memId })).ok, false, '管理员可移除成员');
+  rinfo = await req('GET', '/api/roles');
+  assert.ok(!rinfo.roles.find((r) => r.id === 'home_service').members.some((m) => m.id === memId), '移除后成员消失');
+  if (fs.existsSync(runtimePath)) {
+    const rt = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
+    assert.ok(!rt.members || !rt.members.home_service || rt.members.home_service.length === 0, '移除后成员不应落盘');
   }
 
   await req('POST', '/api/reset');
-  console.log('✓ 角色权限测试通过（默认角色/单步可见/全员可跳转但仅能改自己步骤/管理员任意修改/内置保护/主表约束）');
+  console.log('✓ 角色权限测试通过（默认角色/单步可见/全员可跳转但仅能改自己步骤/管理员任意修改/内置保护/主表约束/成员管理）');
 })().catch((e) => {
   console.error('✗ 角色权限测试失败:', e.message);
   process.exit(1);

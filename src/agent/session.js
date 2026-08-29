@@ -26,6 +26,7 @@ class DemoSession {
     this.orch = new Orchestrator(ctx);
     this.roles = new RoleRegistry();
     this.currentRoleId = 'admin'; // 默认管理员，可任意阶段修改
+    this.currentMemberId = null;  // 当前操作者（null = 以角色本人操作）
     this.phase = 'idle';
     this.actionId = null;
     this.tasks = [];
@@ -43,6 +44,7 @@ class DemoSession {
   setRole(id) {
     if (!this.roles.get(id)) throw new Error(`角色不存在：${id}`);
     this.currentRoleId = id;
+    this.currentMemberId = null; // 切换角色后回到"角色本人"
     this.lastStep = { role: '编排器', name: '切换角色', data: { roleId: id, name: this.currentRole().name } };
     return this.state();
   }
@@ -80,7 +82,7 @@ class DemoSession {
     if (!role) throw new Error('角色不存在');
     if (id === 'admin') throw new Error('管理员角色不可删除');
     this.roles.remove(id);
-    if (this.currentRoleId === id) this.currentRoleId = 'admin'; // 删掉当前角色则回落到管理员
+    if (this.currentRoleId === id) { this.currentRoleId = 'admin'; this.currentMemberId = null; } // 删掉当前角色则回落到管理员
     this.lastStep = { role: '编排器', name: '删除角色', data: { id, name: role.name } };
     return this.state();
   }
@@ -103,10 +105,59 @@ class DemoSession {
       roles: this.roles.list(),
       phases: PHASES,
       currentRoleId: this.currentRoleId,
-      currentRole: cur ? { id: cur.id, name: cur.name, scope: cur.scope } : null,
+      currentRole: cur ? { id: cur.id, name: cur.name, scope: cur.scope, members: cur.members || [] } : null,
       allowedPhases: this.allowedPhases(),
       isAdmin: this.isAdmin(),
+      currentMemberId: this.currentMemberId,
+      currentMember: this.currentMember(),
     };
+  }
+
+  // ---------- 角色成员（管理员可给各角色添加人员） ----------
+  /** 当前操作者成员（null = 角色本人） */
+  currentMember() {
+    if (!this.currentMemberId) return null;
+    const cur = this.currentRole();
+    if (!cur || !cur.members) return null;
+    return cur.members.find((m) => m.id === this.currentMemberId) || null;
+  }
+
+  /** 当前操作者显示名（操作留痕用）：成员名 > 角色名 */
+  operatorName() {
+    const m = this.currentMember();
+    return m ? m.name : (this.currentRole() ? this.currentRole().name : '');
+  }
+
+  /** 管理员给某角色添加人员（name 必填；open_id 可选，real 模式发飞书用） */
+  addRoleMember(roleId, { name, open_id = '' } = {}) {
+    this._assertAdmin();
+    const mem = this.roles.addMember(roleId, { name, open_id });
+    this.lastStep = { role: '编排器', name: '添加角色成员', data: { roleId, member: mem } };
+    return this.state();
+  }
+
+  /** 管理员移除某角色下的人员 */
+  removeRoleMember(roleId, memberId) {
+    this._assertAdmin();
+    this.roles.removeMember(roleId, memberId);
+    if (this.currentMemberId === memberId) this.currentMemberId = null; // 删掉当前操作者则回到角色本人
+    this.lastStep = { role: '编排器', name: '移除角色成员', data: { roleId, memberId } };
+    return this.state();
+  }
+
+  /** 切换当前操作者：memberId=null 表示以角色本人操作 */
+  setMember(memberId) {
+    if (memberId !== null && memberId !== undefined) {
+      const cur = this.currentRole();
+      if (!cur || !(cur.members || []).some((m) => m.id === memberId)) {
+        throw new Error(`成员不存在或不属于当前角色`);
+      }
+      this.currentMemberId = memberId;
+    } else {
+      this.currentMemberId = null;
+    }
+    this.lastStep = { role: '编排器', name: '切换操作者', data: { memberId: this.currentMemberId, name: this.operatorName() } };
+    return this.state();
   }
 
   /** 新建并下发一个行动（五步第一步）
@@ -203,24 +254,25 @@ class DemoSession {
     return this.state();
   }
 
-  /** 家服主任为某任务手动上传凭证（含图片附件） */
-  async uploadVoucher({ task_id, type, content, attachment = null, submitted_by = '家服主任' }) {
+  /** 家服主任为某任务手动上传凭证（含图片附件）；提交人默认用当前操作者名（角色成员 > 角色名） */
+  async uploadVoucher({ task_id, type, content, attachment = null, submitted_by = '' }) {
     this._assertRole('uploading'); // 上传凭证 = 家服主任 / 管理员
     const task = this.ctx.base.get('task', task_id);
     if (!task) throw new Error(`任务不存在: ${task_id}`);
+    const sub = submitted_by || this.operatorName() || '家服主任';
     const v = this.ctx.base.insert('voucher', {
       task_id,
       type: type || '执行过程凭证',
       content: content || '',
       attachment,
-      submitted_by,
+      submitted_by: sub,
       review_status: '待审',
       review_note: '',
     });
     this.vouchers.push(v);
     this.pendingVouchers.push(v.voucher_id);
-    this.lastStep = { role: '执行助手', name: '接收凭证上传', data: { voucher_id: v.voucher_id, task_id } };
-    logStepSafe(this.ctx, '执行助手', '接收凭证上传', { voucher_id: v.voucher_id, task_id, hasAttachment: !!attachment });
+    this.lastStep = { role: '执行助手', name: '接收凭证上传', data: { voucher_id: v.voucher_id, task_id, submitted_by: sub } };
+    logStepSafe(this.ctx, '执行助手', '接收凭证上传', { voucher_id: v.voucher_id, task_id, submitted_by: sub, hasAttachment: !!attachment });
     return this.state();
   }
 
@@ -403,7 +455,10 @@ class DemoSession {
       overdueItems,
       overdueCount: overdueItems.length,
       currentRoleId: this.currentRoleId,
-      currentRole: cur ? { id: cur.id, name: cur.name, scope: cur.scope } : null,
+      currentRole: cur ? { id: cur.id, name: cur.name, scope: cur.scope, members: cur.members || [] } : null,
+      currentMemberId: this.currentMemberId,
+      currentMember: this.currentMember(),
+      operatorName: this.operatorName(),
       // 角色权限：前端据此决定「可见 / 可操作」的步骤与按钮
       allowedPhases: allowed,
       isAdmin: this.isAdmin(),
