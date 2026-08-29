@@ -38,15 +38,25 @@ const { ACTION_STATUS } = require('./data/schema');
 const app = express();
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
+// 兜底：任何未捕获异常只记日志，不退出进程（避免容器 CrashLoop）
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e && e.message));
+
 const feishu = new FeishuAdapter();
 const ctx = { feishu, base: feishu.base, llm: require('./llm/hunyuan'), config };
 const orch = new Orchestrator(ctx);
 const session = new DemoSession(ctx);
 
 // 预置 3 个试点校档案（惠州/温州/衡阳），便于 demo 直接选
-for (const s of config.pilotSchools) {
-  feishu.base.insert('school', s);
-}
+// real 模式为异步飞书写入：失败仅记日志，绝不阻塞/打断服务启动
+(async () => {
+  for (const s of config.pilotSchools) {
+    try {
+      await feishu.base.insert('school', s);
+    } catch (e) {
+      console.error('[startup] 试点校写入失败（不阻塞启动）:', e && e.message);
+    }
+  }
+})();
 
 app.get('/health', (req, res) => res.json({ ok: true, mode: feishu.mode, llm: ctx.llm._channel() }));
 
