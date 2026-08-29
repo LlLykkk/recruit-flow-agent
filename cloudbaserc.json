@@ -1,0 +1,19 @@
+{
+  "envId": "YOUR_CLOUDBASE_ENV_ID",
+  "functionRoot": "src",
+  "functions": [
+    {
+      "name": "recruit-flow-agent",
+      "type": "HTTP",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "memorySize": 256,
+      "timeout": 30,
+      "installDependency": true,
+      "envVariables": {
+        "FEISHU_MODE": "real",
+        "NODE_ENV": "production"
+      }
+    }
+  ]
+}

@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>招生控流智能体 · 交互演示</title>
+<style>
+  :root{ --blue:#3370ff; --blue2:#eaf1ff; --green:#2ea121; --red:#d93636; --ink:#1f2329; --muted:#8a8f99; --line:#e5e6eb; --bg:#f5f6f8; --amber:#d9a300; }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,'Microsoft YaHei',sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:24px 16px 60px}
+  .wrap{max-width:900px;margin:0 auto}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:20px;margin:0}
+  .chip{font-size:12px;background:var(--blue2);color:var(--blue);padding:3px 10px;border-radius:20px}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  .steps{display:flex;gap:6px;margin:18px 0 22px}
+  .step{flex:1;text-align:center;padding:10px 4px;border-radius:10px;background:#fff;border:1px solid var(--line);font-size:13px;position:relative;transition:.2s}
+  .step .n{display:inline-block;width:22px;height:22px;line-height:22px;border-radius:50%;background:#eee;color:#666;font-size:12px;margin-bottom:4px}
+  .step.done{background:var(--blue2);border-color:var(--blue)}
+  .step.done .n{background:var(--blue);color:#fff}
+  .step.active{border-color:var(--blue);box-shadow:0 0 0 3px rgba(51,112,255,.15)}
+  .step.active .n{background:var(--blue);color:#fff}
+  .step .lk{font-size:11px;color:var(--muted);margin-top:2px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .card.overdue{border:2px solid var(--red);box-shadow:0 0 0 3px rgba(217,54,54,.12)}
+  .card.readonly{border:1px dashed var(--amber);background:#fffdf5}
+  .locked-view{opacity:.72;pointer-events:none;user-select:none}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .card h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#f2f3f5;color:#666}
+  .badge.blue{background:var(--blue2);color:var(--blue)}
+  .badge.green{background:#e8f6e8;color:var(--green)}
+  .badge.red{background:#fdeaea;color:var(--red)}
+  .kv{font-size:13px;line-height:1.7;color:#333}
+  .kv b{color:var(--ink)}
+  pre{white-space:pre-wrap;word-break:break-word;background:#0b1021;color:#cfe3ff;padding:12px;border-radius:10px;font-size:12.5px;max-height:260px;overflow:auto;margin:0}
+  .task{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px}
+  .task.overdue{border:1px solid var(--red);background:#fff5f5}
+  .task .top{display:flex;justify-content:space-between;gap:8px}
+  .muted{color:var(--muted)}
+  button{font-family:inherit;border:0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer;transition:.15s}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{opacity:.92}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn-green{background:var(--green);color:#fff}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-mini{padding:4px 9px;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:6px}
+  .btn-mini.red{color:var(--red);border-color:#f5c2c2}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=text],input[type=datetime-local],select,textarea{flex:1;min-width:160px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit}
+  textarea{min-height:60px;resize:vertical}
+  label.fld{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  .voucher{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+  .voucher.pending{border-left:3px solid var(--blue)}
+  .voucher.pass{border-left:3px solid var(--green)}
+  .voucher.reject{border-left:3px solid var(--red)}
+  .gate{background:#fffbe6;border:1px solid #ffe58f;border-radius:12px;padding:16px;margin-bottom:14px}
+  .gate .q{font-weight:600;margin-bottom:10px}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--muted);font-size:13px}
+  .hidden{display:none}
+  .flash{font-size:12px;color:var(--muted);margin-left:10px}
+  .optline{display:flex;gap:6px;align-items:center}
+  .optline select{flex:1}
+  .checks{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0}
+  .checks label{font-size:13px;display:flex;align-items:center;gap:4px}
+  /* 角色栏 */
+  .rolebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:12px 0 14px}
+  .rolebar .rl{font-size:13px;color:var(--muted)}
+  .rolebar select{flex:none;min-width:180px;max-width:260px}
+  .rolebar #roleScope{font-size:12.5px}
+  .rrow{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px dashed var(--line);padding:9px 0}
+  .rrow .scopes{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  /* overdue panel */
+  #overdueBtn{position:fixed;top:18px;right:18px;background:var(--red);color:#fff;border-radius:24px;padding:8px 14px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.15);z-index:50}
+  #overdueBtn.zero{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  #overduePanel{position:fixed;top:60px;right:18px;width:340px;max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:14px;z-index:50;display:none}
+  #overduePanel h4{margin:0 0 8px;font-size:14px}
+  .ov-item{border:1px solid #f5c2c2;background:#fff5f5;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:12.5px}
+  .ov-item .t{font-weight:600}
+  .imgprev{max-width:160px;max-height:120px;border-radius:6px;border:1px solid var(--line);margin-top:6px}
+</style>
+</head>
+<body>
+<button id="overdueBtn" class="zero" onclick="toggleOverdue()">逾期提醒（0）</button>
+<div id="overduePanel">
+  <h4>⏰ 逾期提醒（责任人）</h4>
+  <div class="row" style="margin-bottom:8px"><button class="btn-mini" onclick="checkOverdue()">检查逾期</button></div>
+  <div id="ovList">暂无逾期项。</div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>招生控流智能体 · 交互演示</h1>
+    <span class="chip" id="modeChip">模式 …</span>
+    <span class="chip" id="llmChip">模型 …</span>
+  </header>
+  <p class="sub">单步推进「五步闭环」；大行动 / 小行动可设<b>责任人 + 截止时间</b>，逾期自动提醒责任人；在<span style="color:var(--blue)">凭证初审</span>与<span style="color:var(--blue)">行动终审</span>两道「人审闸」由你点按钮裁决。</p>
+
+  <div class="rolebar">
+    <span class="rl">当前角色</span>
+    <select id="roleSel" onchange="switchRole(this.value)"></select>
+    <span id="roleScope" class="muted"></span>
+    <button id="roleMgrBtn" class="btn-mini" onclick="toggleRoleMgr()">⚙ 权限管理</button>
+  </div>
+
+  <div class="card hidden" id="roleMgr"></div>
+
+  <div class="steps" id="steps"></div>
+
+  <div class="card" id="startCard"></div>
+
+  <div id="board"></div>
+
+  <div id="controls" class="row" style="margin:6px 0 14px"></div>
+
+  <details id="traceBox">
+    <summary>展开运行轨迹（四角色每一步日志，仅管理员可见）</summary>
+    <pre id="trace">—</pre>
+  </details>
+</div>
+
+<script>
+const $ = (s)=>document.querySelector(s);
+const STEPS = ['行动下发','任务拆解','落地执行','凭证上传与审核','终审归档'];
+const STEP_PHASES = [['dispatched'],['decomposed'],['executing'],['uploading','reviewing'],['final']];
+const PHASE_DONE = { dispatched:1, decomposed:2, executing:3, uploading:4, reviewing:4, final:5, done:5, idle:0 };
+let meta = { schools:[], options:{}, mvpSchoolId:'' };
+let customOptions = { schoolNature:[], officeNature:[], voucherType:[], difficulty:[], stages:[] };
+let rolesInfo = { roles:[], phases:[], currentRoleId:'admin', allowedPhases:[], isAdmin:true };
+
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function can(ph){ return (rolesInfo.allowedPhases||[]).includes(ph); }
+function phaseLabel(k){ const p=(rolesInfo.phases||[]).find(x=>x.key===k); return p?p.label:k; }
+function roleForPhase(ph){ const p=(rolesInfo.phases||[]).find(x=>x.key===ph); return p&&p.role?p.role:'对应角色'; }
+/** 下一步按钮：有权限可点；无权限显示禁用按钮 + 只读提示（仍可见页面） */
+function nextBtn(label, ph){
+  if(can(ph)) return `<button class="btn-primary" onclick="next()">${label}</button>`;
+  return `<button class="btn-primary" disabled>${label}</button><span class="flash">🔒 只读：推进本步骤需「${roleForPhase(ph)}」或管理员</span>`;
+}
+function scopeText(scope){
+  if(scope==='all') return '管理员 · 全部步骤';
+  return (scope||[]).map(phaseLabel).join('、') || '（无）';
+}
+function renderSteps(phase){
+  const done = PHASE_DONE[phase] ?? 0;
+  const el = $('#steps'); el.innerHTML='';
+  STEPS.forEach((label,i)=>{
+    const n=i+1;
+    const operable = STEP_PHASES[i].some(can);
+    const cls = n<=done ? 'done' : (n===done+1 && phase!=='done' ? 'active' : '');
+    el.innerHTML += `<div class="step ${cls}"><div class="n">${n}</div>${label}${operable?'':'<div class="lk">只读</div>'}</div>`;
+  });
+}
+function statusBadge(st){
+  if(st==='已闭环') return '<span class="badge green">已闭环</span>';
+  if(st==='审核中') return '<span class="badge blue">审核中</span>';
+  if(st==='逾期') return '<span class="badge red">逾期</span>';
+  return `<span class="badge">${esc(st)}</span>`;
+}
+function toLocalInput(iso){
+  if(!iso) return '';
+  const d=new Date(iso); const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fmtDue(iso){ return iso?iso.slice(0,16).replace('T',' '):'未设'; }
+function optHTML(arr,selected){ return (arr||[]).map(o=>`<option value="${esc(o)}" ${o===selected?'selected':''}>${esc(o)}</option>`).join(''); }
+function selectWithAdd(name,selected){
+  return `<div class="optline"><select data-opt="${name}">${optHTML(customOptions[name],selected)}</select><button type="button" class="btn-mini" onclick="addOption('${name}')">＋</button></div>`;
+}
+function addOption(name){
+  const v=prompt('输入新选项（'+name+'）：');
+  if(v&&v.trim()){ const t=v.trim(); customOptions[name]=customOptions[name]||[]; if(!customOptions[name].includes(t)) customOptions[name].push(t); renderStartCard(); }
+}
+function addStage(){
+  const v=prompt('输入新学段：');
+  if(v&&v.trim()){ const t=v.trim(); customOptions.stages=customOptions.stages||[]; if(!customOptions.stages.includes(t)) customOptions.stages.push(t); renderStartCard(); }
+}
+
+// ---------- 开始表单 ----------
+function renderStartCard(){
+  const schools = (meta.schools||[]).map(s=>`<option value="${s.school_id}">${esc(s.name)}（${esc(s.stages||'')}）</option>`).join('');
+  const stageChecks = (customOptions.stages||[]).map(s=>`<label><input type="checkbox" class="stg" value="${esc(s)}"> ${esc(s)}</label>`).join('');
+  $('#startCard').classList.remove('readonly');
+  $('#startCard').innerHTML = `
+    <h3>① 新建招生控流行动</h3>
+    <label class="fld">学校（可新建，带学校性质/招办性质/学段）</label>
+    <div class="optline">
+      <select id="schoolSel">${schools}<option value="__new__">➕ 新建学校…</option></select>
+    </div>
+    <div id="newSchoolBox" class="hidden" style="border:1px dashed var(--line);border-radius:10px;padding:10px;margin:8px 0">
+      <label class="fld">学校名称</label><input type="text" id="ns_name" placeholder="新学校名称">
+      <label class="fld">学段（可多选 / ＋新建）</label>
+      <div class="checks">${stageChecks}<button type="button" class="btn-mini" onclick="addStage()">＋ 学段</button></div>
+      <label class="fld">学校性质</label>${selectWithAdd('schoolNature','民办')}
+      <label class="fld">招办性质</label>${selectWithAdd('officeNature','自建招办')}
+    </div>
+
+    <label class="fld">行动标题</label>
+    <input type="text" id="titleInput" placeholder="例：最美家长服务中心评比（温州慧中公学专场）">
+
+    <label class="fld">行动难度（每学段任务数：低1 / 中2 / 高3）</label>
+    ${selectWithAdd('difficulty','中')}
+
+    <label class="fld">大行动责任人（默认 招生管家，可改）</label>
+    <input type="text" id="respInput" value="招生管家">
+
+    <label class="fld">大行动截止时间</label>
+    <input type="datetime-local" id="dueInput">
+
+    <div class="row" style="margin-top:12px">
+      <button class="btn-primary" id="startBtn" onclick="startDemo()">开始下发 ▶</button>
+    </div>`;
+  $('#schoolSel').onchange = (e)=>{ $('#newSchoolBox').style.display = e.target.value==='__new__'?'block':'none'; };
+}
+function readNewSchool(){
+  const stages=[...document.querySelectorAll('.stg')].filter(c=>c.checked).map(c=>c.value);
+  return { name:$('#ns_name').value.trim(), stages,
+    nature:selVal('schoolNature'), office_nature:selVal('officeNature') };
+}
+function selVal(name){ const el=document.querySelector(`select[data-opt="${name}"]`); return el?el.value:''; }
+
+// ---------- 角色栏 / 权限管理 ----------
+function renderRoleBar(){
+  const sel=$('#roleSel');
+  sel.innerHTML = (rolesInfo.roles||[]).map(r=>`<option value="${esc(r.id)}" ${r.id===rolesInfo.currentRoleId?'selected':''}>${esc(r.name)}</option>`).join('');
+  const cur=(rolesInfo.roles||[]).find(r=>r.id===rolesInfo.currentRoleId);
+  $('#roleScope').textContent = cur ? (cur.scope==='all' ? '可操作：全部步骤（管理员）' : '可操作：'+scopeText(cur.scope)) : '';
+  $('#roleMgrBtn').style.display = rolesInfo.isAdmin ? 'inline-block' : 'none';
+  if(!rolesInfo.isAdmin) $('#roleMgr').classList.add('hidden');
+  renderRoleMgr();
+}
+function renderRoleMgr(){
+  const box=$('#roleMgr'); if(!box) return;
+  if(!rolesInfo.isAdmin){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  const phaseChecks=(rolesInfo.phases||[]).map(p=>`<label><input type="checkbox" class="rph" value="${esc(p.key)}"> ${esc(p.label)}</label>`).join('');
+  const rows=(rolesInfo.roles||[]).map(r=>{
+    const chips = r.scope==='all'
+      ? '<span class="badge blue">全部步骤（管理员级）</span>'
+      : (r.scope||[]).map(k=>`<span class="badge">${esc(phaseLabel(k))}</span>`).join(' ');
+    return `<div class="rrow"><div><b>${esc(r.name)}</b> ${r.builtin?'<span class="badge">内置</span>':'<span class="badge green">自定义</span>'}
+      <div class="scopes">${chips}</div></div>
+      ${r.builtin?'':`<button class="btn-mini red" onclick="delRole('${esc(r.id)}')">删除</button>`}</div>`;
+  }).join('');
+  box.innerHTML = `<h3>⚙ 角色权限管理（管理员）</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:8px">新增角色时<b>只勾选一个步骤</b>，该角色就只能看到并操作这一个步骤；勾选「全部步骤」即赋予管理员级权限。自定义角色会自动保存，重启服务后仍在。</div>
+    ${rows}
+    <div style="border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px">
+      <label class="fld">新角色名称</label><input type="text" id="nr_name" placeholder="例：凭证审核专员">
+      <label class="fld">可见 / 可操作 步骤（可多选）</label>
+      <div class="checks">${phaseChecks}<label><input type="checkbox" id="nr_all"> 全部步骤（管理员级）</label></div>
+      <div class="row" style="margin-top:8px"><button class="btn-primary" onclick="addRole()">＋ 新增角色</button></div>
+    </div>`;
+}
+function toggleRoleMgr(){ $('#roleMgr').classList.toggle('hidden'); }
+async function switchRole(id){
+  const s=await api('POST','/api/role/switch',{ roleId:id });
+  if(s.ok===false){ alert(s.msg); return; }
+  await refreshRoles(); render(s);
+}
+async function addRole(){
+  const name=$('#nr_name').value.trim();
+  if(!name){ alert('请填写角色名称'); return; }
+  const picked=[...document.querySelectorAll('.rph')].filter(c=>c.checked).map(c=>c.value);
+  const scope=$('#nr_all').checked ? 'all' : picked;
+  const r=await api('POST','/api/role',{ name, scope });
+  if(r.ok===false){ alert(r.msg); return; }
+  await refreshRoles(); render(r);
+}
+async function delRole(id){
+  if(!confirm('确认删除该自定义角色？若正以该角色操作，将自动切回管理员。')) return;
+  const r=await api('DELETE','/api/role',{ id });
+  if(r.ok===false){ alert(r.msg); return; }
+  await refreshRoles(); render(r);
+}
+
+// ---------- 渲染主面板 ----------
+function render(state){
+  renderSteps(state.phase);
+
+  // idle：始终展示新建行动表单；非授权角色整块只读（可看不可点）
+  if(state.phase==='idle'){
+    $('#startCard').style.display='block';
+    if(!$('#titleInput')) renderStartCard();
+    const ro = !can('dispatched');
+    $('#startCard').classList.toggle('locked-view', ro);
+    $('#startCard').classList.toggle('readonly', ro);
+    const btn=$('#startBtn'); if(btn) btn.disabled = ro;
+    let hint=document.getElementById('startHint');
+    if(ro){
+      if(!hint){ hint=document.createElement('div'); hint.id='startHint'; hint.className='hint'; $('#startCard').appendChild(hint); }
+      hint.textContent='🔒 当前角色仅可查看①行动下发页面，新建行动需「行动官」或「管理员」。';
+    } else if(hint){ hint.remove(); }
+    $('#board').innerHTML=''; $('#controls').innerHTML='';
+    const ob=$('#overdueBtn'); ob.textContent='逾期提醒（0）'; ob.className='zero';
+    if(state.trace) $('#trace').textContent = state.trace.map(t=>`【${t.actor}】${t.action}  ${t.detail?JSON.stringify(t.detail):''}`).join('\n');
+    return;
+  }
+  $('#startCard').style.display='none';
+
+  const board=$('#board'); const ctl=$('#controls'); ctl.innerHTML='';
+
+  // 逾期按钮
+  const ob=$('#overdueBtn'); ob.textContent=`逾期提醒（${state.overdueCount||0}）`;
+  ob.className = (state.overdueCount||0)>0 ? '' : 'zero';
+  if((state.overdueCount||0)>0) renderOverduePanel(state.overdueItems||[]);
+
+  let html='';
+
+  if(state.action){
+    const a=state.action;
+    const aEdit = can('dispatched');
+    html += `<div class="card ${a.overdue?'overdue':''}"><h3>📋 行动主表 ${statusBadge(a.status)} ${a.overdue?'<span class="badge red">已逾期</span>':''}
+      ${aEdit?'<button class="btn-mini" style="margin-left:auto" onclick="toggleActionEdit()">✎ 编辑</button>':''}</h3>
+      <div class="kv"><b>标题：</b>${esc(a.title)}</div>
+      <div class="kv"><b>学校：</b>${esc(a.school_id)}　<b>难度：</b>${esc(a.difficulty||'中')}</div>
+      <div class="kv"><b>责任人：</b>${esc(a.responsible||a.owner||'')}　<b>截止：</b>${esc(fmtDue(a.due_at))}</div>
+      <div id="actionEditBox" class="hidden" style="border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px">
+        <label class="fld">标题</label><input type="text" id="a_title" value="${esc(a.title)}">
+        <label class="fld">难度</label><select id="a_diff">${optHTML(customOptions.difficulty||['低','中','高'],a.difficulty||'中')}</select>
+        <label class="fld">责任人</label><input type="text" id="a_resp" value="${esc(a.responsible||a.owner||'')}">
+        <label class="fld">截止时间</label><input type="datetime-local" id="a_due" value="${esc(toLocalInput(a.due_at))}">
+        <div class="row" style="margin-top:8px"><button class="btn-primary" onclick="saveAction()">保存修改</button>
+          <button class="btn-ghost" onclick="toggleActionEdit()">取消</button></div>
+      </div></div>`;
+  }
+
+  // 跳转到任意步骤（全员可用；非管理员跳转后仅可修改自己负责的步骤，其余只读）
+  if(!['idle','done'].includes(state.phase)){
+    const operablePh = rolesInfo.allowedPhases||[];
+    html += `<div class="card"><h3>🧭 跳转到任意步骤 ${rolesInfo.isAdmin?'<span class="badge blue">管理员可全部修改</span>':'<span class="badge">仅能修改自己负责的步骤</span>'}</h3>
+      <div class="row">${(rolesInfo.phases||[]).map(p=>{
+        const cur = state.phase===p.key;
+        const own = operablePh.includes(p.key);
+        const cls = cur ? 'btn-primary' : (own ? 'btn-green' : 'btn-ghost');
+        return `<button class="${cls}" onclick="jumpTo('${esc(p.key)}')">${esc(p.label)}${own?'':'·只读'}</button>`;
+      }).join('')}</div>
+      <div class="muted" style="font-size:12.5px;margin-top:6px">${rolesInfo.isAdmin
+        ? `跳转后可对目标步骤的任务包 / 凭证 / 审核进行修改（当前：${esc(phaseLabel(state.phase))}）。`
+        : `绿色=你负责的步骤（可修改），其余步骤只读可看（当前：${esc(phaseLabel(state.phase))}）。`}</div></div>`;
+  }
+
+  // 任务卡（含 uploading 上传 UI）
+  if(state.tasks && state.tasks.length){
+    const tEdit = can('decomposed') && (rolesInfo.isAdmin || ['decomposed','executing'].includes(state.phase));
+    html += `<div class="card"><h3>🧩 传导官·任务包（${state.tasks.length}）${tEdit?' <span class="badge blue">可增删</span>':''}</h3>`;
+    if(tEdit){
+      html += `<div class="row" style="margin:4px 0 10px"><button class="btn-ghost" onclick="toggleAddTask()">＋ 添加任务包</button></div>`;
+      html += `<div id="addTaskBox" class="hidden" style="border:1px dashed var(--line);border-radius:10px;padding:12px;margin:6px 0">
+        <label class="fld">学段</label>${selectWithAdd('stages',(customOptions.stages||['小'])[0])}
+        <label class="fld">任务内容</label><textarea id="nt_content" placeholder="描述该任务要做什么…"></textarea>
+        <label class="fld">责任人（默认 家服主任）</label><input type="text" id="nt_resp" value="家服主任">
+        <label class="fld">截止时间（留空则跟随大行动截止）</label><input type="datetime-local" id="nt_due">
+        <div class="row" style="margin-top:8px"><button class="btn-primary" onclick="addTask()">确认添加</button>
+          <button class="btn-ghost" onclick="toggleAddTask()">取消</button></div>
+      </div>`;
+    }
+    state.tasks.forEach(t=>{
+      const hasV = (state.vouchers||[]).some(v=>v.task_id===t.task_id);
+      const upOK = state.phase==='uploading' && can('uploading');
+      html += `<div class="task ${t.overdue?'overdue':''}">
+        <div class="top"><b>[${esc(t.stage)}] ${esc(t.content)}</b><span class="badge">${esc(t.status)} ${t.overdue?'·逾期':''}</span></div>`;
+      if(state.phase==='uploading'){
+        // 表单始终展示；非授权角色整块只读（可看不可点）
+        html += `<div class="${upOK?'':'locked-view'}">`;
+        html += `<label class="fld">责任人（默认 家服主任）</label>
+          <div class="optline"><input type="text" id="tresp_${esc(t.task_id)}" value="${esc(t.responsible||'家服主任')}">
+            <button class="btn-mini" onclick="saveTask('${esc(t.task_id)}')">保存</button></div>
+          <label class="fld">截止时间</label>
+          <input type="datetime-local" id="tdue_${esc(t.task_id)}" value="${esc(toLocalInput(t.due_at))}">
+          <label class="fld">凭证类型</label>${selectWithAdd('voucherType','活动照片')}
+          <label class="fld">凭证内容</label><textarea id="vcontent_${esc(t.task_id)}" placeholder="家服主任填写执行过程与结果…"></textarea>
+          <label class="fld">凭证图片（可选）</label><input type="file" id="vfile_${esc(t.task_id)}" accept="image/*">
+          <div class="row" style="margin-top:8px"><button class="btn-primary" onclick="uploadVoucher('${esc(t.task_id)}')">上传凭证</button></div>`;
+        html += `</div>`;
+        if(!upOK) html += `<div class="hint">🔒 只读：上传凭证需「家服主任」或「管理员」。</div>`;
+      } else {
+        html += `<div class="muted">责任人：${esc(t.responsible||t.assignee||'')}　截止：${esc(fmtDue(t.due_at))}</div>`;
+        if(tEdit){
+          html += `<div class="row" style="margin-top:6px"><button class="btn-mini red" onclick="deleteTask('${esc(t.task_id)}')">🗑 删除任务</button>
+            ${hasV?'<span class="flash">（该任务已上传凭证，不可删除）</span>':''}</div>`;
+        }
+      }
+      // 该任务已上传凭证
+      const vs=(state.vouchers||[]).filter(v=>v.task_id===t.task_id);
+      vs.forEach(v=>{
+        const cls = v.review_status==='通过'?'pass':(v.review_status==='驳回'?'reject':'pending');
+        const dec = v.review_status==='通过'||v.review_status==='驳回';
+        html += `<div class="voucher ${cls}" style="margin-left:8px"><div class="top"><b>凭证 ${esc(v.voucher_id)}</b>
+          ${dec?`<span class="badge ${v.review_status==='通过'?'green':'red'}">${esc(v.review_status)}</span>`:'<span class="badge blue">待审</span>'}</div>
+          <div class="kv"><b>类型：</b>${esc(v.type||'')}　<b>提交人：</b>${esc(v.submitted_by||'')}</div>
+          <div class="kv">${esc(v.content)}</div>
+          ${v.attachment?`<img class="imgprev" src="${esc(v.attachment.dataUrl)}" alt="${esc(v.attachment.filename||'')}">`:''}
+          ${dec?`<div class="muted" style="margin-top:6px">初审意见：${esc(v.review_note||'')}</div>`:''}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+  // 执行助手话术
+  if(state.lastStep && state.lastStep.role==='执行助手' && state.lastStep.data && state.lastStep.data.guidance){
+    html += `<div class="card"><h3>💬 执行助手·推送家服主任话术</h3><pre>${esc(state.lastStep.data.guidance)}</pre></div>`;
+  }
+  // 凭证审核闸门
+  if(state.phase==='reviewing'){
+    const canRev = can('reviewing');
+    html += `<div class="gate"><div class="q">🔍 督进官·凭证初审（人审闸）${canRev?'—— 逐张点「通过/驳回」':'—— 只读视图'}</div>`;
+    (state.vouchers||[]).forEach(v=>{
+      const cls = v.review_status==='通过'?'pass':(v.review_status==='驳回'?'reject':'pending');
+      const decided = v.review_status==='通过'||v.review_status==='驳回';
+      html += `<div class="voucher ${cls}"><div class="top"><b>凭证 ${esc(v.voucher_id)}</b>
+        ${decided?`<span class="badge ${v.review_status==='通过'?'green':'red'}">${esc(v.review_status)}</span>`:'<span class="badge blue">待审</span>'}</div>
+        <div class="kv"><b>类型：</b>${esc(v.type||'')}</div>
+        <div class="kv">${esc(v.content)}</div>
+        ${v.attachment?`<img class="imgprev" src="${esc(v.attachment.dataUrl)}" alt="${esc(v.attachment.filename||'')}">`:''}
+        ${decided?`<div class="muted" style="margin-top:6px">初审意见：${esc(v.review_note||'')}</div>`:
+          (canRev?`<div class="row" style="margin-top:8px">
+             <button class="btn-green" onclick="reviewVoucher('${esc(v.voucher_id)}','approve')">通过</button>
+             <button class="btn-red" onclick="reviewVoucher('${esc(v.voucher_id)}','reject')">驳回</button>
+           </div>`:`<div class="row" style="margin-top:8px">
+             <button class="btn-green" disabled>通过</button>
+             <button class="btn-red" disabled>驳回</button>
+             <span class="hint">🔒 审核需「督进官」或「管理员」</span>
+           </div>`)}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  // 终审闸门
+  if(state.phase==='final'){
+    const canFin = can('final');
+    html += `<div class="gate"><div class="q">⚖️ 行动官·终审归档（人审闸）—— ${canFin?'是否通过本次行动闭环？':'只读视图'}</div>
+      ${canFin?`<div class="row">
+        <button class="btn-green" onclick="reviewFinal('approve')">✓ 通过终审并归档</button>
+        <button class="btn-red" onclick="reviewFinal('reject')">✗ 驳回整改</button>
+      </div>`:`<div class="row">
+        <button class="btn-green" disabled>✓ 通过终审并归档</button>
+        <button class="btn-red" disabled>✗ 驳回整改</button>
+        <span class="hint">🔒 终审需「行动官」或「管理员」</span>
+      </div>`}</div>`;
+  }
+  // 完成
+  if(state.phase==='done' && state.lastStep){
+    const d = state.lastStep.data||{};
+    html += `<div class="card"><h3>✅ 闭环完成 ${statusBadge(d.status||'')}</h3>
+      <div class="kv">终审结论：<b>${d.decision==='approve'?'通过并归档':'驳回整改'}</b></div>
+      <div class="kv">共生成任务包 <b>${state.tasks.length}</b> 个，凭证 <b>${state.vouchers.length}</b> 张。</div>
+      <div class="kv muted" style="margin-top:8px">凭证全部通过 → 行动进入闭环；若有驳回，对应任务需整改后重提。</div></div>`;
+  }
+  board.innerHTML = html;
+
+  // 控制按钮（受角色权限约束；无权限仍可见，但为禁用按钮 + 只读提示）
+  const pending = state.pendingVouchers && state.pendingVouchers.length;
+  if(['dispatched','decomposed','executing'].includes(state.phase)){
+    const labels={dispatched:'下一步：拆解任务包 ▶',decomposed:'下一步：落地执行 ▶',executing:'下一步：凭证上传 ▶'};
+    ctl.innerHTML = nextBtn(labels[state.phase], state.phase);
+  } else if(state.phase==='uploading'){
+    const allUp = state.tasks.length>0 && state.tasks.every(t=>(state.vouchers||[]).some(v=>v.task_id===t.task_id));
+    ctl.innerHTML = allUp
+      ? nextBtn('下一步：进入凭证审核 ▶', 'uploading')
+      : (can('uploading')
+          ? `<span class="flash">请先为所有任务上传至少一张凭证（${state.vouchers.length}/${state.tasks.length}）</span>`
+          : `<span class="flash">🔒 只读：凭证上传需「家服主任」或管理员（已上传 ${state.vouchers.length}/${state.tasks.length} 张）</span>`);
+  } else if(state.phase==='reviewing' && !pending){
+    ctl.innerHTML = nextBtn('下一步：进入终审 ▶', 'reviewing');
+  } else if(state.phase==='done'){
+    ctl.innerHTML = `<button class="btn-ghost" onclick="reset()">↺ 重置，新建一个行动</button>`;
+  }
+
+  if(state.trace && state.trace.length){
+    $('#trace').textContent = state.trace.map(t=>`【${t.actor}】${t.action}  ${t.detail?JSON.stringify(t.detail):''}`).join('\n');
+  }
+}
+
+// ---------- 逾期面板 ----------
+function renderOverduePanel(items){
+  const el=$('#ovList');
+  if(!items || !items.length){ el.innerHTML='暂无逾期项。'; return; }
+  el.innerHTML = items.map(it=>`
+    <div class="ov-item">
+      <div class="t">${it.kind==='action'?'大行动':'小行动'}：${esc(it.title)}</div>
+      <div>责任人：<b>${esc(it.responsible||'—')}</b></div>
+      <div>应完成：${esc(fmtDue(it.due_at))}</div>
+      <div class="muted">已逾期：${Math.floor(it.overdue_by_ms/3600000)} 小时</div>
+    </div>`).join('');
+}
+function toggleOverdue(){ const p=$('#overduePanel'); p.style.display = p.style.display==='block'?'none':'block'; }
+async function checkOverdue(){
+  const r = await api('POST','/api/check-overdue',{notify:false});
+  renderOverduePanel(r.items||[]);
+  $('#overdueBtn').textContent=`逾期提醒（${r.count||0}）`;
+  $('#overdueBtn').className=(r.count||0)>0?'':'zero';
+}
+
+// ---------- API 调用 ----------
+async function api(method,url,body){
+  const opt={method,headers:{'Content-Type':'application/json'}};
+  if(body!==undefined) opt.body=JSON.stringify(body);
+  const r=await fetch(url,opt); return r.json();
+}
+function next(){ api('POST','/api/next').then(render); }
+function reset(){ api('POST','/api/reset').then(render); }
+async function refreshRoles(){ rolesInfo = await (await fetch('/api/roles')).json(); renderRoleBar(); }
+async function jumpTo(ph){
+  const s=await api('POST','/api/jump',{ phase:ph });
+  if(s.ok===false){ alert(s.msg); return; }
+  render(s);
+}
+function toggleActionEdit(){ $('#actionEditBox').classList.toggle('hidden'); }
+async function saveAction(){
+  const body={ title:$('#a_title').value.trim(), difficulty:$('#a_diff').value,
+    responsible:$('#a_resp').value.trim(),
+    due_at: $('#a_due').value? new Date($('#a_due').value).toISOString():'' };
+  const s=await api('PUT','/api/action',body);
+  if(s.ok===false){ alert(s.msg); return; }
+  render(s);
+}
+function startDemo(){
+  const sel=$('#schoolSel').value;
+  let school_id=null, school=null;
+  if(sel==='__new__'){ school=readNewSchool(); if(!school.name){ alert('请填写新学校名称'); return; } }
+  else school_id=sel;
+  const body={ school_id, school, title:$('#titleInput').value.trim(),
+    difficulty:selVal('difficulty'), responsible:$('#respInput').value.trim()||'招生管家',
+    due_at: $('#dueInput').value? new Date($('#dueInput').value).toISOString():'' };
+  api('POST','/api/start',body).then(render);
+}
+function reviewVoucher(id,decision){ api('POST','/api/review',{target:'voucher',id,decision}).then(render); }
+function reviewFinal(decision){ api('POST','/api/review',{target:'final',decision}).then(render); }
+async function saveTask(taskId){
+  const body={ task_id:taskId, responsible:$('#tresp_'+taskId).value.trim(),
+    due_at: $('#tdue_'+taskId).value? new Date($('#tdue_'+taskId).value).toISOString():'' };
+  const s=await api('PUT','/api/task',body); render(s);
+}
+async function uploadVoucher(taskId){
+  const fileInput=$('#vfile_'+taskId);
+  const type=selVal('voucherType');
+  const content=$('#vcontent_'+taskId).value.trim();
+  const doSend=(attachment)=>{
+    api('POST','/api/voucher',{ task_id:taskId, type, content, attachment, submitted_by:'家服主任' }).then(render);
+  };
+  if(fileInput && fileInput.files && fileInput.files[0]){
+    const f=fileInput.files[0];
+    const reader=new FileReader();
+    reader.onload=()=> doSend({ filename:f.name, mime:f.type, dataUrl:reader.result });
+    reader.onerror=()=> doSend(null);
+    reader.readAsDataURL(f);
+  } else {
+    doSend(null);
+  }
+}
+function toggleAddTask(){ const b=$('#addTaskBox'); b.style.display = b.style.display==='block'?'none':'block'; }
+async function addTask(){
+  const content=$('#nt_content').value.trim();
+  if(!content){ alert('请填写任务内容'); return; }
+  const body={ stage:selVal('stages'), content,
+    responsible:$('#nt_resp').value.trim()||'家服主任',
+    due_at: $('#nt_due').value? new Date($('#nt_due').value).toISOString():'' };
+  const s=await api('POST','/api/task',body);
+  if(s.ok===false){ alert(s.msg); return; }
+  render(s);
+}
+async function deleteTask(taskId){
+  if(!confirm('确认删除该任务包？（已上传凭证的任务不可删除）')) return;
+  const s=await api('DELETE','/api/task',{ task_id:taskId });
+  if(s.ok===false){ alert(s.msg); }
+  render(s);
+}
+
+// ---------- 初始化 ----------
+(async function init(){
+  const h=await (await fetch('/health')).json();
+  $('#modeChip').textContent='飞书：'+h.mode;
+  $('#llmChip').textContent='模型：'+h.llm;
+  meta = await (await fetch('/api/meta')).json();
+  customOptions = {
+    schoolNature: meta.options.schoolNature||['民办','公办','合作办学','集团直营'],
+    officeNature: meta.options.officeNature||['自建招办','外包代理','集团派驻','校方兼管'],
+    voucherType: meta.options.voucherType||['活动照片','触达名单','家长反馈','会议纪要'],
+    difficulty: meta.options.difficulty||['低','中','高'],
+    stages: meta.options.stages||['幼','小','初','高'],
+  };
+  await refreshRoles();
+  renderStartCard();
+  const s=await (await fetch('/api/state')).json();
+  render(s);
+})();
+</script>
+</body>
+</html>

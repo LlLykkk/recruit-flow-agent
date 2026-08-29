@@ -1,0 +1,5 @@
+#!/bin/bash
+# CloudBase HTTP 云函数启动脚本：启动 Web Server 并监听 $PORT（CloudBase 注入，默认 9000）
+cd "$(dirname "$0")"
+export PORT="${PORT:-9000}"
+node src/index.js

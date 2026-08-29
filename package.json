@@ -1,0 +1,23 @@
+{
+  "name": "recruit-flow-agent",
+  "version": "0.1.0",
+  "description": "招生控流智能体 —— 可部署在腾讯云 CloudBase 的飞书原生多角色 Agent，承载五步闭环 + 四方角色。MVP 锁定温州慧中公学。",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "demo": "node simulator/run.js",
+    "test": "node test/loop.test.js && node test/interactive.test.js && node test/overdue.test.js && node test/task-crud.test.js && node test/roles.test.js && node test/view.test.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "tencentcloud-sdk-nodejs": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@larksuiteoapi/node-sdk": "^1.30.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
